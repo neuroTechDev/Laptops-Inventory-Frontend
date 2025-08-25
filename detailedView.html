@@ -4,15 +4,27 @@
     <meta charset="UTF-8" />
     <title>Laptop Detailed View</title>
     <style>
+      html,
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      *,
+      *::before,
+      *::after {
+        font-family: inherit;
+      }
+      ::placeholder {
+        font-family: inherit;
+      }
+
       form {
         width: 60%;
         margin: auto;
         display: flex;
         flex-direction: column;
         gap: 12px;
-        font-family: sans-serif;
       }
-
       .group {
         display: flex;
         align-items: center;
@@ -20,19 +32,16 @@
         gap: 12px;
         font-size: 16px;
       }
-
       .group label {
         width: 160px;
         font-weight: bold;
       }
-
       input,
       select {
         flex: 1;
         padding: 8px;
         font-size: 14px;
       }
-
       button#save {
         padding: 10px;
         background-color: #333;
@@ -41,13 +50,50 @@
         cursor: pointer;
         font-size: 14px;
       }
-
       button#dateButton {
         background-color: #e7e7e7;
         color: rgb(51, 51, 51);
         font-size: 14px;
         padding: 8px 10px;
         cursor: pointer;
+      }
+      h2 {
+        text-align: center;
+      }
+      :root {
+        --app-font: Arial, Helvetica, sans-serif;
+      }
+      html,
+      body {
+        font-family: var(--app-font);
+      }
+      *,
+      *::before,
+      *::after {
+        font-family: inherit;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      ::placeholder {
+        font-family: inherit;
+      }
+
+      .danger {
+        background: #c62828;
+        color: #fff;
+        border: 1px solid #b71c1c;
+        padding: 8px 12px;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      .danger:hover {
+        filter: brightness(0.95);
       }
     </style>
   </head>
@@ -175,52 +221,97 @@
           document.getElementById("lastUpdate").value = today;
         }
       </script>
+
+      <div class="group">
+        <label>Danger Zone:</label>
+        <div style="flex: 1">
+          <input id="deleteConfirm" placeholder="Type DELETE to confirm" />
+          <button id="deleteBtn" class="danger" type="button">
+            Delete Laptop
+          </button>
+          <div style="font-size: 12px; color: #666; margin-top: 6px">
+            Permanently removes PC <span id="pcLabel"></span>.
+          </div>
+        </div>
+      </div>
     </form>
-      <script>
-        const API_BASE = "https://inventoryapptest-production.up.railway.app";
+    <script>
+      const API_BASE = "https://inventoryapptest-production.up.railway.app";
 
-        async function loadLaptopDetails() {
-          const urlParams = new URLSearchParams(window.location.search);
-          const pcNumber = urlParams.get("pcNumber");
+      const urlParams = new URLSearchParams(window.location.search);
+      const pcNumber = urlParams.get("pcNumber");
 
-          const res = await fetch(`${API_BASE}/api/LapTop/${pcNumber}`);
-          const laptop = await res.json();
-
-          const form = document.getElementById("editLaptopForm");
-          for (const field in laptop) {
-            if (form.elements[field]) {
-              form.elements[field].value = laptop[field] || "";
-            }
-          }
+      async function loadLaptopDetails() {
+        const res = await fetch(
+          `${API_BASE}/api/LapTop/${encodeURIComponent(pcNumber)}`
+        );
+        const laptop = await res.json();
+        const form = document.getElementById("editLaptopForm");
+        for (const field in laptop) {
+          if (form.elements[field])
+            form.elements[field].value = laptop[field] || "";
         }
-          
-        document
-            .getElementById("editLaptopForm")
-            .addEventListener("submit", async function (e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData.entries());
+        // show which PC will be deleted
+        document.getElementById("pcLabel").textContent = pcNumber || "";
+        // if we came from the red delete button, focus the confirm box
+        if (urlParams.get("action") === "delete") {
+          document.getElementById("deleteConfirm").focus();
+        }
+      }
 
-            data.price = parseFloat(data.price);
-            data.anyDesk = parseInt(data.anyDesk);
-            data.status = data.status === "true";
+      document
+        .getElementById("editLaptopForm")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
+          const formData = new FormData(this);
+          const data = Object.fromEntries(formData.entries());
+          data.price = parseFloat(data.price);
+          data.anyDesk = parseInt(data.anyDesk, 10);
+          data.status = data.status === "true";
 
-            const res = await fetch(`${API_BASE}/api/LapTop/${data.pcNumber}`, {
+          const res = await fetch(
+            `${API_BASE}/api/LapTop/${encodeURIComponent(data.pcNumber)}`,
+            {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(data),
-            });
+            }
+          );
 
-      if (res.ok) {
-        alert("Laptop updated successfully!");
-        window.location.href = "webSite.html";
-      } else {
-        alert("Error updating laptop.");
-      }
-    });
+          if (res.ok) {
+            alert("Laptop updated successfully!");
+            window.location.href = "webSite.html";
+          } else {
+            alert("Error updating laptop.");
+          }
+        });
 
-  loadLaptopDetails();
-</script>
+      // DELETE with "type DELETE" confirmation
+      document
+        .getElementById("deleteBtn")
+        .addEventListener("click", async () => {
+          const conf = document.getElementById("deleteConfirm").value.trim();
+          if (conf !== "DELETE") {
+            alert("Please type DELETE to confirm.");
+            document.getElementById("deleteConfirm").focus();
+            return;
+          }
+          try {
+            const r = await fetch(
+              `${API_BASE}/api/LapTop/${encodeURIComponent(pcNumber)}`,
+              { method: "DELETE" }
+            );
+            const msg = await r.text();
+            if (!r.ok) throw new Error(msg || "Delete failed");
+            alert(msg || "Laptop deleted.");
+            location.href = "webSite.html";
+          } catch (e) {
+            console.error(e);
+            alert("Failed to delete laptop.");
+          }
+        });
+
+      loadLaptopDetails();
+    </script>
   </body>
-
 </html>
